@@ -15,8 +15,8 @@ var jsonParser = bodyParser.json();
 var urlencodedParser = bodyParser.urlencoded({ extended: false });
 
 admin.initializeApp();
-
-app.post("/api/users/:userId/groups/add", urlencodedParser, (req, res) => {
+///api/users/:userId/groups/add
+app.post("/api/users/:userId/groups", urlencodedParser, (req, res) => {
   console.log(req.body.groupName);
   admin
     .firestore()
@@ -26,7 +26,7 @@ app.post("/api/users/:userId/groups/add", urlencodedParser, (req, res) => {
     .doc(req.body.groupName)
     .set({
       groupName: req.body.groupName,
-      members: req.body.members,
+      members: JSON.parse(req.body.members),
     })
     .catch((err) => {
       console.log(err);
@@ -34,24 +34,56 @@ app.post("/api/users/:userId/groups/add", urlencodedParser, (req, res) => {
     });
 });
 
-app.get("/api/users/:userId/groups/", (req, res) => {
-  let docss = [];
 
-  function resolveAfterEnd() {
+app.get("/api/users/:userId/groups", (req, res) => {
+let docss = [];
+
+
+function resolveAfterEnd() {
+  return new Promise((resolve) => {
+    admin
+      .firestore()
+      .collection("users")
+      .doc(req.params.userId)
+      .collection("groups")
+      .get()
+      .then((querySnapshot) => {
+        querySnapshot.forEach((doc, index) => {
+          docss.push({data:doc.data(),membersData:[]});
+          // console.log(doc.data());
+        });
+      })
+      .then(() => {
+        resolve("succes");
+      })
+      .catch((err) => {
+        console.log(err);
+      });
+  });
+}
+async function f1() {
+  const x = await resolveAfterEnd();
+}
+
+  function resolveAfterEnd2(member, index) {
+    console.log(member,"69")
     return new Promise((resolve) => {
-      admin
-        .firestore()
-        .collection("users")
-        .doc(req.params.userId)
-        .collection("groups")
-        .get()
-        .then((querySnapshot) => {
-          querySnapshot.forEach((doc, index) => {
-            docss.push(doc.data());
-            // console.log(doc.data());
-          });
-        })
-        .then(() => {
+      fetch(`https://us-central1-ms-waterintake.cloudfunctions.net/app/api/users/${member}/waterintake/today`, {
+        method: "GET", // or 'PUT',
+
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+        },
+      })
+        .then((res) => res.json())
+        .then((json) => {
+          console.log(json, "80")
+           if(Object.keys(json).length != 0){
+          docss[index].membersData.push({ name: member, waterIntakeToday: json.data.waterIntake });
+           }
+         
+          //newData[index1].membersData[index2] = { name: member, waterIntakeToday: json.data.waterIntake };
+
           resolve("succes");
         })
         .catch((err) => {
@@ -59,56 +91,42 @@ app.get("/api/users/:userId/groups/", (req, res) => {
         });
     });
   }
-  async function f1() {
-    const x = await resolveAfterEnd();
+  async function f2(member, index) {
+    const x = await resolveAfterEnd2(member, index);
   }
-  async function f2() {
-    let newData = [...docss];
-    function resolveAfterEnd2() {
-      return new Promise((resolve) => {
-        docss.map((group, index1) => {
-          newData[index1].membersData = [];
-          group.members.map((member, index2) => {
-            console.log(member);
-            fetch(`https://us-central1-ms-waterintake.cloudfunctions.net/app/api/users/${member}/waterintake/today`, {
-              method: "GET", // or 'PUT',
+  async function loopie(group,index) {
+    console.log(group,"97")
+    for (let i = 0; i < group.members.length; i++) {
+      const result = await f2(group.members[i], index);
+     
+    }
+  }
+  async function f3(){
+    // docss.map((doc, index) => {
+    //   loopie(doc.data, index);
+    // });
+    for(let i=0;i<docss.length;i++){
+       await loopie(docss[i].data,i)
+    }
+  }
+  f1().then(()=>{
+    // for(let i=0;i<docss.length;i++){
+    //    loopie(docss[i].data,i)
+    // }
+    f3().then(()=>{
+      console.log(docss, "111");
+      res.json({ data: docss });
 
-              headers: {
-                "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-              },
-            })
-              .then((res) => res.json())
-              .then((json) => {
-                newData[index1].membersData.push({ name: member, waterIntakeToday: json.data.waterIntake });
-                console.log(newData[index1].membersData.length, group.members.length);
-                //newData[index1].membersData[index2] = { name: member, waterIntakeToday: json.data.waterIntake };
-                if (newData[index1].membersData.length === group.members.length) {
-                  console.log("hi");
-                  resolve("succes");
-                }
-              })
-              .catch((err) => {
-                console.log(err);
-              });
-          });
-        });
-      });
-    }
-    async function f3() {
-      const x = await resolveAfterEnd2();
-    }
-    f3().then(() => {
-      console.log(newData, "101");
-      res.json({ data: newData });
-      return newData;
-    });
-  }
-  f1().then(() => {
-    f2().then((doc) => {
-      console.log(doc, "107");
-      // res.json({ data: doc });
-    });
-  });
-});
+    })
+    
+    
+    
+
+  })
+  
+
+})
+
+
 
 exports.app = functions.https.onRequest(app);
