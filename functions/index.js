@@ -17,7 +17,8 @@ var urlencodedParser = bodyParser.urlencoded({ extended: false });
 admin.initializeApp();
 ///api/users/:userId/groups/add
 app.post("/api/users/:userId/groups", urlencodedParser, (req, res) => {
-  console.log(req.body.groupName);
+  console.log(req.body.members);
+  let arr=req.body.members.split(",")
   admin
     .firestore()
     .collection("users")
@@ -26,7 +27,7 @@ app.post("/api/users/:userId/groups", urlencodedParser, (req, res) => {
     .doc(req.body.groupName)
     .set({
       groupName: req.body.groupName,
-      members: JSON.parse(req.body.members),
+      members: arr,
     })
     .catch((err) => {
       console.log(err);
@@ -95,10 +96,9 @@ async function f1() {
     const x = await resolveAfterEnd2(member, index);
   }
   async function loopie(group,index) {
-    console.log(group,"97")
+    
     for (let i = 0; i < group.members.length; i++) {
       const result = await f2(group.members[i], index);
-     
     }
   }
   async function f3(){
