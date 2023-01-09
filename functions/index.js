@@ -21,38 +21,83 @@ app.post("/api/users/:userId/groups", urlencodedParser, (req, res) => {
   let arr=req.body.members.split(",")
   admin
     .firestore()
-    .collection("users")
-    .doc(req.params.userId)
+   
     .collection("groups")
-    .doc(req.body.groupName)
-    .set({
+    .add({
       groupName: req.body.groupName,
       members: arr,
+
+    }).then((doc)=>{
+      arr.map((member)=>{
+        admin
+    .firestore()
+    .collection("users")
+    .doc(member)
+    .collection("groups")
+    .doc(doc.id)
+    .set({
+      groupName: req.body.groupName,
+      docId:doc.id
     })
     .catch((err) => {
       console.log(err);
       res.json(err);
     });
+      })
+
+    })
+    .catch((err) => {
+      console.log(err);
+      res.json(err);
+    });
+
+    
 });
 
-
 app.get("/api/users/:userId/groups", (req, res) => {
-let docss = [];
+  let doccs=[]
+  admin
+  .firestore()
+  .collection("users")
+  .doc(req.params.userId)
+  .collection("groups")
+  .get()
+  .then((querySnapshot) => {
+    querySnapshot.forEach((doc, index) => {
+      doccs.push({data:doc.data()});
+      // console.log(doc.data());
+    });
+  })
+  .then(() => {
+    res.send({data:doccs})
+   
+  })
+  .catch((err) => {
+    console.log(err);
+  });
+
+
+})
+
+
+app.get("/api/users/:userId/groups/:groupId", (req, res) => {
+let groupData;
 
 
 function resolveAfterEnd() {
   return new Promise((resolve) => {
     admin
       .firestore()
-      .collection("users")
-      .doc(req.params.userId)
+      
       .collection("groups")
+      .doc(req.params.groupId)
       .get()
-      .then((querySnapshot) => {
-        querySnapshot.forEach((doc, index) => {
-          docss.push({data:doc.data(),membersData:[]});
-          // console.log(doc.data());
-        });
+      .then((doc) => {
+        // querySnapshot.forEach((doc, index) => {
+        //   docss.push({data:doc.data()});
+        //   // console.log(doc.data());
+        // });
+        groupData={data:doc.data(),membersData:[]}
       })
       .then(() => {
         resolve("succes");
@@ -66,9 +111,10 @@ async function f1() {
   const x = await resolveAfterEnd();
 }
 
-  function resolveAfterEnd2(member, index) {
-    console.log(member,"69")
+  function resolveAfterEnd2(member) {
+   
     return new Promise((resolve) => {
+      console.log(member,"69")
       fetch(`https://us-central1-ms-waterintake.cloudfunctions.net/app/api/users/${member}/waterintake/today`, {
         method: "GET", // or 'PUT',
 
@@ -80,42 +126,42 @@ async function f1() {
         .then((json) => {
           console.log(json, "80")
            if(Object.keys(json).length != 0){
-          docss[index].membersData.push({ name: member, waterIntakeToday: json.data.waterIntake });
+          groupData.membersData.push({ name: member, waterIntakeToday: json.data.waterIntake });
+          resolve("succes");
            }
          
           //newData[index1].membersData[index2] = { name: member, waterIntakeToday: json.data.waterIntake };
 
-          resolve("succes");
+          
         })
         .catch((err) => {
           console.log(err);
         });
     });
   }
-  async function f2(member, index) {
-    const x = await resolveAfterEnd2(member, index);
+  async function f2(member) {
+    const x = await resolveAfterEnd2(member);
   }
-  async function loopie(group,index) {
+  async function loopie(group) {
     
-    for (let i = 0; i < group.members.length; i++) {
-      const result = await f2(group.members[i], index);
+    for (let i = 0; i < group.data.members.length; i++) {
+      const result = await f2(group.data.members[i]);
     }
   }
   async function f3(){
     // docss.map((doc, index) => {
     //   loopie(doc.data, index);
     // });
-    for(let i=0;i<docss.length;i++){
-       await loopie(docss[i].data,i)
-    }
+    await loopie(groupData)
+    
   }
   f1().then(()=>{
     // for(let i=0;i<docss.length;i++){
     //    loopie(docss[i].data,i)
     // }
     f3().then(()=>{
-      console.log(docss, "111");
-      res.json({ data: docss });
+     console.log(groupData)
+      res.json({ data: groupData });
 
     })
     
